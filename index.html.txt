@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>玄荒秘境｜水墨剑修</title>
+<!-- PWA -->
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#140b06">
+<link rel="apple-touch-icon" href="./icons/icon-512.png">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#080808;display:flex;justify-content:center;align-items:center;height:100vh;overflow:hidden;font-family:SimHei,serif;color:#fff}
+#gameCanvas{border:2px solid #552200;max-width:100vw;max-height:100vh}
+.ui-panel{position:absolute;top:12px;left:12px;padding:8px 12px;background:rgba(0,0,0,0.55);border:1px solid #884422;border-radius:6px;font-size:14px}
+.save-panel{position:absolute;top:12px;right:12px;padding:8px 12px;background:rgba(0,0,0,0.55);border:1px solid #884422;border-radius:6px;font-size:14px}
+.save-btn{padding:4px 6px;margin:2px;background:#483018;border:1px solid #996622;color:#fff;border-radius:4px}
+/* 商人交易面板 */
+.shop-panel{
+  position:absolute;
+  left:50%;top:50%;transform:translate(-50%,-50%);
+  width:560px;padding:20px;background:rgba(10,10,10,0.92);
+  border:2px solid #705028;border-radius:10px;display:none;
+}
+.shop-title{text-align:center;font-size:20px;color:#e6c270;margin-bottom:16px}
+.shop-item{display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid #333}
+.shop-name{color:#ddd}
+.shop-price{color:#f8c048}
+.buy-btn{padding:4px 10px;background:#583818;border:1px solid #996622;color:#fff;border-radius:4px;cursor:pointer}
+.shop-close{margin-top:16px;width:100%;padding:8px;background:#332211;border:1px solid #664422;color:#fff;border-radius:4px;cursor:pointer}
+/* 奇遇弹窗 */
+.event-panel{
+  position:absolute;
+  left:50%;top:50%;transform:translate(-50%,-50%);
+  width:540px;padding:22px;background:rgba(8,8,8,0.94);
+  border:2px solid #605030;border-radius:10px;display:none;
+}
+.event-title{font-size:19px;color:#dbb868;text-align:center;margin-bottom:12px}
+.event-desc{color:#ccc;line-height:1.6;margin-bottom:18px;font-size:15px}
+.event-opt{width:100%;margin:6px 0;padding:8px;background:#382c1c;border:1px solid #775828;color:#fff;border-radius:4px;cursor:pointer}
+/* 触屏虚拟按键 */
+.touch-btn{position:absolute;width:70px;height:70px;border-radius:50%;background:rgba(255,255,255,0.12);border:1px solid rgba(255,200,100,0.4);color:#fff;font-size:20px}
+#btnW{bottom:120px;left:60px}
+#btnS{bottom:40px;left:60px}
+#btnA{bottom:80px;left:10px}
+#btnD{bottom:80px;left:110px}
+#btnJ{bottom:80px;right:30px}
+#btnK{bottom:160px;right:30px}
+</style>
+</head>
+<body oncontextmenu="return false;">
+<div class="ui-panel">
+  玄荒秘境｜水墨横屏<br>
+  WASD移动｜J 攻击｜K 护盾<br>
+  1：穷奇｜2：饕餮｜M：商人｜B：切换大地图
+</div>
+<div class="save-panel">
+  <div>存档管理</div>
+  <button class="save-btn" id="saveBtn">保存进度</button>
+  <button class="save-btn" id="loadBtn">读取存档</button>
+  <button class="save-btn" id="exportBtn">导出存档</button>
+  <button class="save-btn" id="importBtn">导入存档</button>
+  <input type="file" id="importFile" style="display:none" accept=".json">
+</div>
+<canvas id="gameCanvas" width="1280" height="720"></canvas>
+<!--触屏按键-->
+<button class="touch-btn" id="btnW">W</button>
+<button class="touch-btn" id="btnS">S</button>
+<button class="touch-btn" id="btnA">A</button>
+<button class="touch-btn" id="btnD">D</button>
+<button class="touch-btn" id="btnJ">攻</button>
+<button class="touch-btn" id="btnK">盾</button>
+<div class="shop-panel" id="shopPanel">
+  <div class="shop-title">秘境商人 · 交易铺</div>
+  <div class="shop-item">
+    <span class="shop-name">【回生丹】恢复全部血量</span>
+    <span class="shop-price">灵石 80</span>
+    <button class="buy-btn" data-id="danHuisheng">购买</button>
+  </div>
+  <div class="shop-item">
+    <span class="shop-name">【破甲剑卷】词条：攻击+18</span>
+    <span class="shop-price">灵石 180</span>
+    <button class="buy-btn" data-id="scrollAtk">购买</button>
+  </div>
+  <div class="shop-item">
+    <span class="shop-name">【玄水甲】防具，生命+35</span>
+    <span class="shop-price">灵石 240</span>
+    <button class="buy-btn" data-id="armorXuanShui">购买</button>
+  </div>
+  <div class="shop-item">
+    <span class="shop-name">【凝神丹】护盾持续时间+20</span>
+    <span class="shop-price">灵石 120</span>
+    <button class="buy-btn" data-id="danNingshen">购买</button>
+  </div>
+  <button class="shop-close">关闭店铺</button>
+</div>
+<div class="event-panel" id="eventPanel">
+  <div class="event-title" id="eventTitle"></div>
+  <div class="event-desc" id="eventDesc"></div>
+  <button class="event-opt" id="optA"></button>
+  <button class="event-opt" id="optB"></button>
+</div>
+<script src="./register-sw.js"></script>
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const shopPanel = document.getElementById("shopPanel");
+const eventPanel = document.getElementById("eventPanel");
+const eventTitle = document.getElementById("eventTitle");
+const eventDesc = document.getElementById("eventDesc");
+const optA = document.getElementById("optA");
+const optB = document.getElementById("optB");
+
+// ========== 贴图资源 ==========
+const res = {
+  bgLava: new Image(),
+  bgSwamp: new Image(),
+  mapBg: new Image(),
+  player: new Image(),
+  bossQiongqi: new Image(),
+  bossTaotie: new Image(),
+  merchant: new Image(),
+  swordBullet: new Image(),
+  fireBullet: new Image(),
+  poisonBullet: new Image(),
+  shield: new Image()
+};
+res.bgLava.src = "";
+res.bgSwamp.src = "";
+res.mapBg.src = "";
+res.player.src = "";
+res.bossQiongqi.src = "";
+res.bossTaotie.src = "";
+res.merchant.src = "";
+res.swordBullet.src = "";
+res.fireBullet.src = "";
+res.poisonBullet.src = "";
+res.shield.src = "";
+
+let allLoaded = false;
+let loadCnt = 0;
+Object.values(res).forEach(img=>{
+  img.onload = ()=>{
+    loadCnt++;
+    if(loadCnt === Object.values(res).length) allLoaded = true;
+  }
+})
+
+// ========== 存档系统 ==========
+const SAVE_KEY = "xuanhuang_save";
+function saveGame(){
+  const saveData = {
+    player:{
+      hp:player.hp,
+      maxHp:player.maxHp,
+      attackBonus:player.attackBonus,
+      hpBonus:player.hpBonus,
+      shieldBonus:player.shieldBonus,
+      stone:player.stone
+    },
+    currentBoss,
+    scene
+  };
+  localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
+  alert("✅ 存档成功！");
+}
+function loadGame(){
+  const raw = localStorage.getItem(SAVE_KEY);
+  if(!raw){ alert("⚠️ 没有存档"); return; }
+  const sd = JSON.parse(raw);
+  player.hp = sd.player.hp;
+  player.maxHp = sd.player.maxHp;
+  player.attackBonus = sd.player.attackBonus;
+  player.hpBonus = sd.player.hpBonus;
+  player.shieldBonus = sd.player.shieldBonus;
+  player.stone = sd.player.stone;
+  currentBoss = sd.currentBoss;
+  scene = sd.scene;
+  resetBoss();
+  alert("✅ 读取成功！");
+}
+function exportSave(){
+  const raw = localStorage.getItem(SAVE_KEY);
+  if(!raw){ alert("⚠️ 无存档"); return; }
+  const blob = new Blob([raw], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "玄荒秘境_存档.json";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+function importSave(file){
+  const reader = new FileReader();
+  reader.onload = e=>{
+    try{
+      JSON.parse(e.target.result);
+      localStorage.setItem(SAVE_KEY, e.target.result);
+      loadGame();
+    }catch(err){ alert("存档文件损坏"); }
+  };
+  reader.readAsText(file);
+}
+document.getElementById("saveBtn").onclick = saveGame;
+document.getElementById("loadBtn").onclick = loadGame;
+document.getElementById("exportBtn").onclick = exportSave;
+document.getElementById("importBtn").onclick = ()=>document.getElementById("importFile").click();
+document.getElementById("importFile").onchange = e=>{
+  if(e.target.files[0]) importSave(e.target.files[0]);
+};
+
+// ========== 奇遇事件库 ==========
+const eventList = [
+  {
+    title:"幽谷灵草",
+    desc:"林间生有一株千年灵草，药香四溢。采之可得增益，也恐有草木精怪守护。",
+    a:"采摘灵草（生命+25）",
+    b:"绕道离开（无事发生）",
+    ra:{hpAdd:25},
+    rb:{}
+  },
+  {
+    title:"上古遗宝",
+    desc:"石缝间露出半卷残破古卷，不知是功法还是禁术，吉凶难料。",
+    a:"研读古卷（攻击+22）",
+    b:"封存不取（灵石+60）",
+    ra:{atkAdd:22},
+    rb:{stoneAdd:60}
+  },
+  {
+    title:"心魔试炼",
+    desc:"浓雾之中幻象丛生，是秘境的心魔考验，渡之可得大道，败则伤及根基。",
+    a:"直面心魔（护盾时长+25）",
+    b:"退避遁走（损失40灵石）",
+    ra:{shieldAdd:25},
+    rb:{stoneSub:40}
+  }
+];
+let curEvent = null;
+
+// ========== 游戏数据 ==========
+const keys = {};
+let scene = "battle";
+let currentBoss = "qiongqi";
+let shopOpen = false;
+let eventOpen = false;
+let inBattle = true;
+
+const player = {
+  x:180, y:H/2, w:72, h:96, hp:100, maxHp:100, speed:4.2,
+  shieldActive:false, shieldCd:0, shieldDur:0, atkCd:0,
+  attackBonus:0, hpBonus:0, shieldBonus:0,
+  stone:300
+};
+const mapPlayer = {x:140, y:360};
+const mapNodes = [
+  {id:"qiongqi", name:"熔岩秘境", x:340, y:140, type:"boss"},
+  {id:"taotie", name:"毒沼秘境", x:920, y:160, type:"boss"},
+  {id:"merchant", name:"秘境商栈", x:1020, y:540, type:"shop"},
+  {id:"event1", name:"幽谷奇遇", x:580, y:400, type:"event"},
+  {id:"event2", name:"古石遗迹", x:740, y:520, type:"event"},
+];
+const merchant = {x: 1080, y: 120, w:84, h:110};
+
+const qiongqi = {
+  x:W-240, y:H/2, w:180, h:220, hp:600, maxHp:600, timer:0, shootGap:75
+};
+const taotie = {
+  x:W-240, y:H/2, w:200, h:240, hp:700, maxHp:700, timer:0, shootGap:85
+};
+let playerBullets = [];
+let bossBullets = [];
+
+const shopGoods = {
+  danHuisheng:{price:80},
+  scrollAtk:{price:180},
+  armorXuanShui:{price:240},
+  danNingshen:{price:120}
+}
+
+//商店购买
+document.querySelectorAll(".buy-btn").forEach(btn=>{
+  btn.onclick = ()=>{
+    const id = btn.dataset.id;
+    const g = shopGoods[id];
+    if(player.stone >= g.price){
+      player.stone -= g.price;
+      switch(id){
+        case "danHuisheng":
+          player.hp = player.maxHp + player.hpBonus;
+          break;
+        case "scrollAtk":
+          player.attackBonus += 18;
+          break;
+        case "armorXuanShui":
+          player.hpBonus +=35;
+          player.maxHp +=35;
+          player.hp +=35;
+          break;
+        case "danNingshen":
+          player.shieldBonus +=20;
+          break;
+      }
+    }
+  }
+})
+document.querySelector(".shop-close").onclick = ()=>{
+  shopOpen = false;
+  shopPanel.style.display = "none";
+}
+optA.onclick = ()=>{
+  const res = curEvent.ra;
+  if(res.hpAdd){ player.hpBonus += res.hpAdd; player.maxHp += res.hpAdd; player.hp += res.hpAdd; }
+  if(res.atkAdd){ player.attackBonus += res.atkAdd; }
+  if(res.shieldAdd){ player.shieldBonus += res.shieldAdd; }
+  if(res.stoneAdd){ player.stone += res.stoneAdd; }
+  if(res.stoneSub){ player.stone = Math.max(0, player.stone - res.stoneSub); }
+  eventOpen = false;
+  eventPanel.style.display = "none";
+  curEvent = null;
+}
+optB.onclick = ()=>{
+  const res = curEvent.rb;
+  if(res.hpAdd){ player.hpBonus += res.hpAdd; player.maxHp += res.hpAdd; player.hp += res.hpAdd; }
+  if(res.atkAdd){ player.attackBonus += res.atkAdd; }
+  if(res.shieldAdd){ player.shieldBonus += res.shieldAdd; }
+  if(res.stoneAdd){ player.stone += res.stoneAdd; }
+  if(res.stoneSub){ player.stone = Math.max(0, player.stone - res.stoneSub); }
+  eventOpen = false;
+  eventPanel.style.display = "none";
+  curEvent = null;
+}
+
+//键盘
+document.addEventListener('keydown',e=>{
+  keys[e.code] = true;
+  if(eventOpen || shopOpen) return;
+  if(e.code === "KeyB"){
+    scene = scene === "battle" ? "map" : "battle";
+  }
+  if(scene === "map"){
+    if(e.code === "Space"){
+      for(let n of mapNodes){
+        const d = Math.hypot(mapPlayer.x - n.x, mapPlayer.y - n.y);
+        if(d < 60){
+          if(n.type === "boss"){
+            if(n.id === "qiongqi") currentBoss = "qiongqi";
+            if(n.id === "taotie") currentBoss = "taotie";
+            scene = "battle";
+            resetBoss();
+            inBattle = true;
+          }
+          if(n.type === "shop"){
+            scene = "battle";
+            inBattle = false;
+          }
+          if(n.type === "event"){
+            curEvent = eventList[Math.floor(Math.random()*eventList.length)];
+            eventTitle.innerText = curEvent.title;
+            eventDesc.innerText = curEvent.desc;
+            optA.innerText = curEvent.a;
+            optB.innerText = curEvent.b;
+            eventOpen = true;
+            eventPanel.style.display = "block";
+          }
+        }
+      }
+    }
+    return;
+  }
+  if(e.code === "Digit1"){
+    currentBoss = "qiongqi";
+    resetBoss();
+    inBattle = true;
+  }
+  if(e.code === "Digit2"){
+    currentBoss = "taotie";
+    resetBoss();
+    inBattle = true;
+  }
+  if(e.code === "KeyM"){
+    if(inBattle) return;
+    shopOpen = !shopOpen;
+    shopPanel.style.display = shopOpen ? "block":"none";
+  }
+  if(e.code==="KeyJ" && player.atkCd<=0){
+    player.atkCd = 18;
+    playerBullets.push({
+      x:player.x+player.w, y:player.y+player.h/2-14, w:36, h:22, vx:12, dmg:12 + player.attackBonus
+    })
+  }
+  if(e.code==="KeyK" && player.shieldCd<=0){
+    player.shieldActive = true;
+    player.shieldDur = 55 + player.shieldBonus;
+    player.shieldCd = 160;
+  }
+})
+document.addEventListener('keyup',e=>keys[e.code]=false);
+
+//触屏按键绑定
+function bindTouch(id, keyName){
+  const el = document.getElementById(id);
+  el.addEventListener("touchstart", ()=>keys[keyName]=true);
+  el.addEventListener("touchend", ()=>keys[keyName]=false);
+}
+bindTouch("btnW","KeyW");
+bindTouch("btnS","KeyS");
+bindTouch("btnA","KeyA");
+bindTouch("btnD","KeyD");
+bindTouch("btnJ","KeyJ");
+bindTouch("btnK","KeyK");
+
+function resetBoss(){
+  playerBullets = [];
+  bossBullets = [];
+  player.hp = player.maxHp + player.hpBonus;
+  player.x = 180;
+  player.y = H/2;
+  if(currentBoss === "qiongqi"){
+    qiongqi.hp = qiongqi.maxHp;
+    qiongqi.timer = 0;
+  }else{
+    taotie.hp = taotie.maxHp;
+    taotie.timer = 0;
+  }
+}
+
+function rectHit(a,b){
+  return a.x < b.x+b.w && a.x+a.w> b.x && a.y < b.y+b.h && a.y+a.h> b.y;
+}
+
+function update(){
+  if(shopOpen || eventOpen) return;
+  if(scene === "map"){
+    if(keys.W && mapPlayer.y>80) mapPlayer.y -= 3.6;
+    if(keys.S && mapPlayer.y<H-80) mapPlayer.y += 3.6;
+    if(keys.A && mapPlayer.x>80) mapPlayer.x -= 3.6;
+    if(keys.D && mapPlayer.x<W-80) mapPlayer.x += 3.6;
+    return;
+  }
+  if(keys.W && player.y>10) player.y -= player.speed;
+  if(keys.S && player.y+player.h < H-10) player.y += player.speed;
+  if(keys.A && player.x>10) player.x -= player.speed;
+  if(keys.D && player.x+player.w < W/2) player.x += player.speed;
+
+  if(player.atkCd>0) player.atkCd--;
+  if(player.shieldCd>0) player.shieldCd--;
+  if(player.shieldDur>0){
+    player.shieldDur--;
+  }else{
+    player.shieldActive = false;
+  }
+
+  if(currentBoss === "qiongqi"){
+    qiongqi.timer++;
+    if(qiongqi.timer >= qiongqi.shootGap){
+      qiongqi.timer = 0;
+      const baseAng = Math.PI;
+      for(let i=-3; i<=3; i++){
+        const ang = baseAng + i * 0.16;
+        bossBullets.push({
+          type:"fire",
+          x:qiongqi.x, y:qiongqi.y + qiongqi.h/2,
+          r:18, vx:Math.cos(ang)*5.2, vy:Math.sin(ang)*5.2
+        })
+      }
+    }
+  }else{
+    taotie.timer++;
+    if(taotie.timer >= taotie.shootGap){
+      taotie.timer = 0;
+      const baseAng = Math.PI;
+      for(let i=-4; i<=4; i++){
+        const ang = baseAng + i * 0.14;
+        bossBullets.push({
+          type:"poison",
+          x:taotie.x, y:taotie.y + taotie.h/2,
+          r:22, vx:Math.cos(ang)*4.5, vy:Math.sin(ang)*4.5
+        })
+      }
+    }
+  }
+
+  for(let i=playerBullets.length-1;i>=0;i--){
+    const b = playerBullets[i];
+    b.x += b.vx;
+    let hitBoss = false;
+    if(currentBoss === "qiongqi"){
+      if(rectHit(b,qiongqi)){
+        qiongqi.hp -= b.dmg; hitBoss = true;
+      }
+    }else{
+      if(rectHit(b,taotie)){
+        taotie.hp -= b.dmg; hitBoss = true;
+      }
+    }
+    if(hitBoss){
+      playerBullets.splice(i,1);
+      continue;
+    }
+    if(b.x > W) playerBullets.splice(i,1);
+  }
+
+  for(let i=bossBullets.length-1;i>=0;i--){
+    const b = bossBullets[i];
+    b.x += b.vx; b.y += b.vy;
+    if(!player.shieldActive){
+      if(Math.hypot(b.x-(player.x+player.w/2), b.y-(player.y+player.h/2)) < 44){
+        player.hp -= 8;
+        bossBullets.splice(i,1);
+        continue;
+      }
+    }else{
+      if(Math.hypot(b.x-(player.x+player.w/2), b.y-(player.y+player.h/2)) < 44){
+        bossBullets.splice(i,1);
+        continue;
+      }
+    }
+    if(b.x<0||b.x>W||b.y<0||b.y>H) bossBullets.splice(i,1);
+  }
+
+  if(currentBoss === "qiongqi" && qiongqi.hp <= 0){
+    inBattle = false;
+    bossBullets = [];
+  }
+  if(currentBoss === "taotie" && taotie.hp <= 0){
+    inBattle = false;
+    bossBullets = [];
+  }
+  if(player.hp <=0) resetBoss();
+}
+
+function draw(){
+  if(scene === "map"){
+    if(allLoaded && res.mapBg.complete){
+      ctx.drawImage(res.mapBg,0,0,W,H);
+    }else{
+      const grad = ctx.createLinearGradient(0,0,W,H);
+      grad.addColorStop(0,"#101814");
+      grad.addColorStop(1,"#050806");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0,0,W,H);
+    }
+    for(let n of mapNodes){
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, 28,0,Math.PI*2);
+      if(n.type==="boss") ctx.fillStyle="#993322";
+      if(n.type==="shop") ctx.fillStyle="#e6b860";
+      if(n.type==="event") ctx.fillStyle="#449966";
+      ctx.fill();
+      ctx.fillStyle="#fff";
+      ctx.font="13px SimHei";
+      ctx.textAlign="center";
+      ctx.fillText(n.name, n.x, n.y+42);
+    }
+    ctx.beginPath();
+    ctx.arc(mapPlayer.x, mapPlayer.y, 24,0,Math.PI*2);
+    ctx.fillStyle="#bbddee";
+    ctx.fill();
+    ctx.fillStyle="#ffe270";
+    ctx.font="16px SimHei";
+    ctx.textAlign="left";
+    ctx.fillText("WASD移动｜空格交互｜B返回战场", 20, 36);
+    return;
+  }
+
+  if(currentBoss === "qiongqi"){
+    if(allLoaded && res.bgLava.complete){
+      ctx.drawImage(res.bgLava,0,0,W,H);
+    }else{
+      const grad = ctx.createLinearGradient(0,0,0,H);
+      grad.addColorStop(0,"#28140c");
+      grad.addColorStop(1,"#120704");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0,0,W,H);
+    }
+  }else{
+    if(allLoaded && res.bgSwamp.complete){
+      ctx.drawImage(res.bgSwamp,0,0,W,H);
+    }else{
+      const grad = ctx.createLinearGradient(0,0,0,H);
+      grad.addColorStop(0,"#0f1f16");
+      grad.addColorStop(1,"#060d09");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0,0,W,H);
+    }
+  }
+
+  if(allLoaded && res.merchant.complete){
+    ctx.drawImage(res.merchant, merchant.x, merchant.y, merchant.w, merchant.h);
+  }else{
+    ctx.fillStyle="#776044";
+    ctx.fillRect(merchant.x,merchant.y,merchant.w,merchant.h);
+  }
+  ctx.fillStyle="#e8c880";
+  ctx.font="14px SimHei";
+  ctx.fillText("秘境商人", merchant.x, merchant.y - 6);
+
+  if(allLoaded && res.player.complete){
+    ctx.drawImage(res.player, player.x, player.y, player.w, player.h);
+  }else{
+    ctx.fillStyle="#cceeff";
+    ctx.fillRect(player.x,player.y,player.w,player.h);
+  }
+  if(player.shieldActive && allLoaded && res.shield.complete){
+    ctx.drawImage(res.shield, player.x-12, player.y-12, player.w+24, player.h+24);
+  }else if(player.shieldActive){
+    ctx.beginPath();
+    ctx.arc(player.x+player.w/2, player.y+player.h/2, 54,0,Math.PI*2);
+    ctx.strokeStyle="#77ddff";
+    ctx.lineWidth=3;
+    ctx.stroke();
+  }
+
+  if(currentBoss === "qiongqi"){
+    if(allLoaded && res.bossQiongqi.complete){
+      ctx.drawImage(res.bossQiongqi, qiongqi.x, qiongqi.y, qiongqi.w, qiongqi.h);
+    }else{
+      ctx.fillStyle="#993322";
+      ctx.fillRect(qiongqi.x,qiongqi.y,qiongqi.w,qiongqi.h);
+    }
+  }else{
+    if(allLoaded && res.bossTaotie.complete){
+      ctx.drawImage(res.bossTaotie, taotie.x, taotie.y, taotie.w, taotie.h);
+    }else{
+      ctx.fillStyle="#337744";
+      ctx.fillRect(taotie.x,taotie.y,taotie.w,taotie.h);
+    }
+  }
+
+  playerBullets.forEach(b=>{
+    if(allLoaded && res.swordBullet.complete){
+      ctx.drawImage(res.swordBullet, b.x,b.y,b.w,b.h);
+    }else{
+      ctx.fillStyle="#aaddff";
+      ctx.fillRect(b.x,b.y,b.w,b.h);
+    }
+  })
+  bossBullets.forEach(b=>{
+    if(b.type === "fire"){
+      if(allLoaded && res.fireBullet.complete){
+        ctx.drawImage(res.fireBullet, b.x-b.r, b.y-b.r, b.r*2, b.r*2);
+      }else{
+        ctx.beginPath();
+        ctx.arc(b.x,b.y,b.r,0,Math.PI*2);
+        ctx.fillStyle="#ff6622";
+        ctx.fill();
+      }
+    }else{
+      if(allLoaded && res.poisonBullet.complete){
+        ctx.drawImage(res.poisonBullet, b.x-b.r, b.y-b.r, b.r*2, b.r*2);
+      }else{
+        ctx.beginPath();
+        ctx.arc(b.x,b.y,b.r,0,Math.PI*2);
+        ctx.fillStyle="#44bb66";
+        ctx.fill();
+      }
+    }
+  })
+
+  ctx.fillStyle="#222";
+  ctx.fillRect(player.x, player.y-14, player.w,8);
+  ctx.fillStyle="#3ee077";
+  ctx.fillRect(player.x, player.y-14, player.w*((player.hp)/(player.maxHp+player.hpBonus)),8);
+
+  if(currentBoss === "qiongqi"){
+    ctx.fillStyle="#222";
+    ctx.fillRect(qiongqi.x, qiongqi.y-18, qiongqi.w,10);
+    ctx.fillStyle="#ee4433";
+    ctx.fillRect(qiongqi.x, qiongqi.y-18, qiongqi.w*(qiongqi.hp/qiongqi.maxHp),10);
+  }else{
+    ctx.fillStyle="#222";
+    ctx.fillRect(taotie.x, taotie.y-18, taotie.w,10);
+    ctx.fillStyle="#44bb66";
+    ctx.fillRect(taotie.x, taotie.y-18, taotie.w*(taotie.hp/taotie.maxHp),10);
+  }
+  ctx.fillStyle="#f8c048";
+  ctx.font="16px SimHei";
+  ctx.fillText(`灵石：${player.stone}`, 20, H - 20);
+  if(!inBattle){
+    ctx.fillStyle="#ffdd77";
+    ctx.font="18px SimHei";
+    ctx.fillText("BOSS已击退！按M找商人，B打开大地图", W/2 - 240, 40);
+  }
+}
+
+function loop(){
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
